@@ -11,6 +11,7 @@ from .step5_split import split_segments
 from .step6_extract import extract_regulations
 from .step7a_dedup import is_duplicate
 from .step7b_write import write_regulation
+from . import step7c_summary
 from .step8_enrich import enrich_regulations
 from .step9_classify import classify_regulations
 
@@ -23,6 +24,7 @@ __all__ = [
     "extract_regulations",
     "is_duplicate",
     "write_regulation",
+    "step7c_summary",
     "enrich_regulations",
     "classify_regulations",
 ]

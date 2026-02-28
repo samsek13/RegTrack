@@ -40,6 +40,7 @@ PROMPT_TEMPLATE = """### 1. 角色定义 (Role)
 - 每个 segment 的 content 必须来自原文，避免改写。
 - small_title 可以为 null，不得虚构标题。
 - 输出必须为合法 JSON，且仅包含 segments 字段。
+- 【强调】不要带有任何Markdown格式，例如'''json'''等
 
 ### 5. 参考示例 (Examples)
 

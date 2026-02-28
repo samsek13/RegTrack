@@ -16,6 +16,7 @@ from steps import (
     extract_regulations,
     is_duplicate,
     write_regulation,
+    step7c_summary,
     enrich_regulations,
     classify_regulations,
 )
@@ -167,7 +168,7 @@ def _process_item(conn: sqlite3.Connection, item: dict):
         logger.info("该 item 未提取到法规信息")
         return
     
-    # 步骤 7A-7B：去重并写入
+    # 步骤 7A-7C：去重、写入主记录、写入 summary
     for reg in regulations:
         reg_name = reg.get("全名", "")
         
@@ -184,10 +185,14 @@ def _process_item(conn: sqlite3.Connection, item: dict):
         # 步骤 7B：写入数据库
         logger.info(f"步骤 7B: 写入法规 - {reg_name[:30]}...")
         try:
-            write_regulation(reg, item.get("link", ""), conn)
-            logger.info(f"法规写入成功: {reg_name}")
+            reg_id = write_regulation(reg, item.get("link", ""), conn)
+            logger.info(f"法规写入成功: {reg_name}, id={reg_id}")
+            
+            # 步骤 7C：将 summary 持久化（仅在 7B 成功后执行）
+            step7c_summary.write_summary(reg_id, reg.get('summary', ''), conn)
+            
         except Exception as e:
-            logger.error(f"步骤 7B 失败: {e}")
+            logger.error(f"步骤 7B/7C 失败: {e}")
 
 
 if __name__ == "__main__":

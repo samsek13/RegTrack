@@ -268,3 +268,53 @@ Step 1: RSS 获取 → Step 2: 标题过滤 → Step 3: 内容提取
 **跳过的步骤文件仍保留在项目中**：
 - `steps/step4_agg.py` - 聚合判断模块（备用）
 - `steps/step5_split.py` - 文章拆分模块（备用）
+
+---
+
+### Summary 公共方法提取与 Step 9 优化（2026-02-28）
+
+本次更新对法规主旨提取逻辑进行了重构优化，主要改进如下：
+
+#### 核心变更
+
+1. **新增公共模块 `regulation_utils.py`**
+   - 提取统一的 `generate_and_save_summary()` 函数，封装"RAG 搜索 → LLM 生成 summary → 按需写库"完整流程
+   - 作为 Step 6、Step 7A、Step 9 的唯一 summary 生成入口
+
+2. **Step 6 改造**
+   - 删除内部 `_generate_summary()` 函数，改为调用公共函数
+   - 通过 `on_generated` 回调保持日志记录完整性
+
+3. **Step 7A 改造**
+   - 删除内部 `_backfill_summary()` 函数，改为调用公共函数
+   - 移除对 `rag.search_and_answer` 的直接依赖
+
+4. **Step 9 优化**
+   - **成本降低**：优先复用数据库中已有的 `summary` 字段，避免重复 RAG 调用
+   - **回退机制**：对于改造前写入的 `summary=NULL` 记录，自动调用公共函数补全
+   - 移除 `RAG_QUERY_TEMPLATE`，简化代码结构
+
+#### 改进收益
+
+- **消除重复代码**：Step 6 和 Step 7A 不再各自维护一套 summary 生成逻辑，符合 DRY 原则
+- **降低运行成本**：Step 9 分类时优先使用已有 summary，显著减少 RAG 调用次数
+- **统一输出格式**：所有场景使用相同的 prompt 模板，确保 summary 格式一致
+- **向后兼容**：对历史数据（summary 为空的记录）有完善的补全机制
+
+#### 技术细节
+
+```python
+# 公共函数签名
+def generate_and_save_summary(
+    reg_info: dict,           # 标准格式的法规信息
+    conn,                     # 数据库连接
+    reg_id: int | None,       # 非None时写库，None时不写库
+    on_generated: callable    # 可选回调，用于日志记录
+) -> str:
+```
+
+| 调用方 | reg_id | on_generated | 行为 |
+|--------|--------|--------------|------|
+| Step 6 | None | 有 | 生成 summary，暂存内存，记录日志 |
+| Step 7A | reg['id'] | 无 | 生成 summary，立即写库 |
+| Step 9 | reg['id'] | 无 | 仅当 summary 为空时生成并写库 |

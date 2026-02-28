@@ -11,6 +11,7 @@ import sqlite3
 
 import db
 import llm
+from regulation_utils import generate_and_save_summary
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -135,13 +136,41 @@ def extract_regulations(
     # 解析 JSON
     regulations = _parse_regulations_json(response)
     
-    # 记录到 llm_log_step6
+    # 新增：为每条法规生成 summary
+    summary_prompts = []
+    summary_responses = []
+    for reg in regulations:
+        # 调用前将中文键转换为标准格式（调用方责任）
+        reg_info = {
+            "name_cn":        reg["全名"],
+            "publisher":      reg.get("发布机构"),
+            "jurisdiction":   reg.get("国家/地区"),
+            "publish_date":   reg.get("发布日期"),
+            "effective_date": reg.get("生效日期"),
+        }
+        
+        # 定义回调函数用于记录日志
+        def make_callback(prompt_list, response_list):
+            def callback(p, r):
+                prompt_list.append(p)
+                response_list.append(r)
+            return callback
+        
+        on_generated = make_callback(summary_prompts, summary_responses)
+        
+        # reg_id=None：step6 场景，暂存内存，不写库（由 step7c 在稍后写入）
+        summary = generate_and_save_summary(reg_info, conn, reg_id=None, on_generated=on_generated)
+        reg['summary'] = summary
+    
+    # 记录到 llm_log_step6（包含 summary 相关信息）
     db.insert_llm_log(conn, "llm_log_step6", {
         "item_guid": item_guid,
         "segment_index": segment_index,
         "prompt": prompt,
         "response": response_str,
         "regulations_extracted": len(regulations),
+        "summary_prompt": "\n---\n".join(summary_prompts) if summary_prompts else None,
+        "summary_response": "\n---\n".join(summary_responses) if summary_responses else None,
     })
     
     logger.info(f"法规提取完成，提取到 {len(regulations)} 条法规")

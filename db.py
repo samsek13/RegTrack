@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS regulations (
     jurisdiction    TEXT,
     category        TEXT,
     source_url      TEXT,
+    summary         TEXT,                    -- 新增：法规内容主旨，2-3句标准化描述
     last_modified   TEXT NOT NULL
 );
 """
@@ -107,9 +108,11 @@ CREATE TABLE IF NOT EXISTS llm_log_step6 (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     item_guid           TEXT NOT NULL,
     segment_index       INTEGER NOT NULL,
-    prompt              TEXT NOT NULL,
-    response            TEXT NOT NULL,
+    prompt              TEXT NOT NULL,         -- 提取结构化信息的 prompt
+    response            TEXT NOT NULL,         -- 提取结构化信息的 LLM 返回
     regulations_extracted INTEGER,
+    summary_prompt      TEXT,                  -- 新增：生成 summary 的 prompt
+    summary_response    TEXT,                  -- 新增：生成 summary 的 LLM 返回
     created_at          TEXT NOT NULL
 );
 """
@@ -117,13 +120,13 @@ CREATE TABLE IF NOT EXISTS llm_log_step6 (
 DDL_LLM_LOG_STEP7A = """
 CREATE TABLE IF NOT EXISTS llm_log_step7a (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    new_reg_name        TEXT NOT NULL,
-    existing_reg_batch  TEXT NOT NULL,
-    rag_query           TEXT NOT NULL,
-    rag_result          TEXT NOT NULL,
-    llm_prompt          TEXT NOT NULL,
-    llm_response        TEXT NOT NULL,
-    is_duplicate        INTEGER NOT NULL,
+    new_reg_name        TEXT NOT NULL,         -- 待比对的新法规名称
+    new_reg_summary     TEXT NOT NULL,         -- 新法规的 summary（内存暂存值）
+    existing_reg_batch  TEXT NOT NULL,         -- 本次对比的旧法规（JSON 数组，含 name_cn + summary）
+    llm_prompt          TEXT NOT NULL,         -- 发给 LLM 的语义比对 prompt
+    llm_response        TEXT NOT NULL,         -- LLM 返回结果
+    is_duplicate        INTEGER NOT NULL,      -- 1=重复，0=不重复
+    jurisdiction_filter TEXT,                  -- 本次比对所用的 jurisdiction 过滤值（便于排查）
     created_at          TEXT NOT NULL
 );
 """
@@ -177,6 +180,34 @@ def get_connection() -> sqlite3.Connection:
         conn.close()
 
 
+def _migrate_if_needed(cursor):
+    """
+    检测并补充历史数据库中缺失的新字段。
+    仅在字段不存在时执行，已存在时静默跳过。
+    """
+    # 检查 regulations.summary
+    cursor.execute("PRAGMA table_info(regulations)")
+    reg_columns = [row[1] for row in cursor.fetchall()]
+    if 'summary' not in reg_columns:
+        cursor.execute("ALTER TABLE regulations ADD COLUMN summary TEXT")
+    
+    # 检查 llm_log_step6 的新列
+    cursor.execute("PRAGMA table_info(llm_log_step6)")
+    log6_columns = [row[1] for row in cursor.fetchall()]
+    if 'summary_prompt' not in log6_columns:
+        cursor.execute("ALTER TABLE llm_log_step6 ADD COLUMN summary_prompt TEXT")
+    if 'summary_response' not in log6_columns:
+        cursor.execute("ALTER TABLE llm_log_step6 ADD COLUMN summary_response TEXT")
+    
+    # llm_log_step7a 表结构变化较大，判断是否需要重建
+    cursor.execute("PRAGMA table_info(llm_log_step7a)")
+    log7a_columns = [row[1] for row in cursor.fetchall()]
+    if log7a_columns and 'new_reg_summary' not in log7a_columns:
+        # 重命名旧表保留历史数据，新建新表
+        cursor.execute("ALTER TABLE llm_log_step7a RENAME TO llm_log_step7a_legacy")
+        cursor.execute(DDL_LLM_LOG_STEP7A)
+
+
 def init_db():
     """
     初始化数据库：创建所有表和触发器
@@ -201,6 +232,9 @@ def init_db():
         # 创建触发器（需先删除已存在的触发器再创建）
         cursor.execute("DROP TRIGGER IF EXISTS trg_regulations_update;")
         cursor.execute(DDL_REGULATIONS_TRIGGER)
+        
+        # 执行迁移检测（对已有数据库的兼容处理）
+        _migrate_if_needed(cursor)
         
         # 如果 rss_sources 表为空，插入默认源
         cursor.execute("SELECT COUNT(*) FROM rss_sources;")
@@ -266,10 +300,40 @@ def insert_regulation(conn: sqlite3.Connection, reg: Dict[str, Any], source_url:
 
 
 def get_all_regulations(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
-    """获取所有法规记录"""
+    """
+    获取所有法规记录
+    
+    返回字段：id, name_cn, jurisdiction, summary, publisher（summary 可能为 NULL）
+    """
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM regulations ORDER BY id;")
+    cursor.execute("SELECT id, name_cn, jurisdiction, summary, publisher FROM regulations ORDER BY id;")
     return [dict(row) for row in cursor.fetchall()]
+
+
+def get_regulations_by_jurisdiction(conn: sqlite3.Connection, jurisdiction: str) -> List[Dict[str, Any]]:
+    """
+    按 jurisdiction 查询法规列表，用于 Step 7A 的过滤阶段。
+    
+    返回字段：id, name_cn, jurisdiction, summary, publisher（summary 可能为 NULL）
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, name_cn, jurisdiction, summary, publisher FROM regulations WHERE jurisdiction = ?",
+        (jurisdiction,)
+    )
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def update_regulation_summary(conn: sqlite3.Connection, reg_id: int, summary: str):
+    """
+    将 summary 写入指定法规记录（Step 7C 调用）。
+    summary 写入后同样触发 last_modified 更新触发器。
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE regulations SET summary = ? WHERE id = ?",
+        (summary, reg_id)
+    )
 
 
 def get_regulations_with_missing_fields(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
@@ -369,8 +433,8 @@ def insert_llm_log(conn: sqlite3.Connection, table: str, data: Dict[str, Any]):
         "llm_log_step2": ["item_guid", "title", "prompt", "response", "result", "created_at"],
         "llm_log_step4": ["item_guid", "prompt", "response", "result", "created_at"],
         "llm_log_step5": ["item_guid", "prompt", "response", "segment_count", "created_at"],
-        "llm_log_step6": ["item_guid", "segment_index", "prompt", "response", "regulations_extracted", "created_at"],
-        "llm_log_step7a": ["new_reg_name", "existing_reg_batch", "rag_query", "rag_result", "llm_prompt", "llm_response", "is_duplicate", "created_at"],
+        "llm_log_step6": ["item_guid", "segment_index", "prompt", "response", "regulations_extracted", "summary_prompt", "summary_response", "created_at"],
+        "llm_log_step7a": ["new_reg_name", "new_reg_summary", "existing_reg_batch", "llm_prompt", "llm_response", "is_duplicate", "jurisdiction_filter", "created_at"],
         "llm_log_step8": ["regulation_id", "field_name", "rag_query", "rag_result", "llm_prompt", "llm_response", "filled_value", "created_at"],
         "llm_log_step9": ["regulation_id", "rag_query", "rag_result", "llm_prompt", "llm_response", "category", "created_at"],
     }

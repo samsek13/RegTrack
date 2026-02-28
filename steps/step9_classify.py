@@ -1,6 +1,7 @@
 """
 Step 9: 法规分类
-使用 LangGraph RAG + LLM 判断法规是否属于目标类别
+基于 summary 判断法规是否属于目标类别
+改造后：优先复用已有 summary，避免重复 RAG 调用
 """
 
 import logging
@@ -9,20 +10,13 @@ import sqlite3
 
 import db
 import llm
-import rag
+from regulation_utils import generate_and_save_summary
 
 # 配置日志
 logger = logging.getLogger(__name__)
 
-# Step 9 的 Prompt 模板（RAG 查询）
-RAG_QUERY_TEMPLATE = """法规名称：{reg_name}
-发布机构：{publisher}
-国家/地区：{jurisdiction}
-
-请提供这个法规的主要内容和主题。"""
-
-# Step 9 的 Prompt 模板（LLM 分类）
-LLM_PROMPT_TEMPLATE = """## 角色(Role)
+# Step 9 的分类 Prompt 模板（使用 summary 作为输入）
+CLASSIFICATION_PROMPT_TEMPLATE = """## 角色(Role)
 
 你是一名法律与合规领域专家，熟悉国际及地区法规体系，擅长从信息中快速提取法规核心内容，并进行精确分类，尤其精通数据保护、隐私保护、APP/SDK合规及人工智能监管相关法规。
 
@@ -110,6 +104,10 @@ def _classify_regulation(conn: sqlite3.Connection, reg: Dict[str, Any]) -> str:
     """
     对单条法规进行分类
     
+    改造后逻辑：
+    - summary 非空 → 直接用 summary 调用 LLM 判断分类（纯 LLM，无 RAG）
+    - summary 为空 → 调用公共函数生成 summary 并写库 → 再调用 LLM 判断分类
+    
     Args:
         conn: 数据库连接
         reg: 法规记录字典
@@ -117,46 +115,48 @@ def _classify_regulation(conn: sqlite3.Connection, reg: Dict[str, Any]) -> str:
     Returns:
         "1" 表示相关，"0" 表示不相关，失败返回 None
     """
+    reg_id = reg["id"]
     reg_name = reg["name_cn"]
-    publisher = reg.get("publisher") or "未知"
-    jurisdiction = reg.get("jurisdiction") or "未知"
     
-    # 构建 RAG 查询
-    rag_query = RAG_QUERY_TEMPLATE.format(
+    # 优先复用已有 summary，避免重复 RAG 调用
+    summary = reg.get("summary")
+    rag_query = "[SKIPPED: summary already exists]"
+    rag_result = "[SKIPPED: summary already exists]"
+    
+    if not summary:
+        # summary 为空（改造前写入的记录），通过公共函数生成并写库
+        reg_info = {
+            "name_cn":        reg["name_cn"],
+            "publisher":      reg.get("publisher"),
+            "jurisdiction":   reg.get("jurisdiction"),
+            "publish_date":   reg.get("publish_date"),
+            "effective_date": reg.get("effective_date"),
+        }
+        summary = generate_and_save_summary(reg_info, conn, reg_id=reg_id)
+        rag_query = "[DELEGATED: see regulation_utils]"
+        rag_result = "[DELEGATED: see regulation_utils]"
+    
+    # 基于 summary 判断分类（纯 LLM，无 RAG）
+    classification_prompt = CLASSIFICATION_PROMPT_TEMPLATE.format(
         reg_name=reg_name,
-        publisher=publisher,
-        jurisdiction=jurisdiction
-    )
-    
-    # 调用 RAG 获取法规主题描述
-    try:
-        rag_result = rag.search_and_answer(rag_query)
-        logger.debug(f"  - RAG 结果: {rag_result[:200]}...")
-    except Exception as e:
-        logger.warning(f"  - RAG 搜索失败: {e}")
-        rag_result = "无搜索结果"
-    
-    # 调用 LLM 进行分类
-    llm_prompt = LLM_PROMPT_TEMPLATE.format(
-        reg_name=reg_name,
-        rag_result=rag_result
+        rag_result=summary,   # 使用 summary 作为法规主题内容
     )
     
     # 重试机制
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            llm_response = llm.call_llm(llm_prompt)
+            llm_response = llm.call_llm(classification_prompt)
             result_clean = llm_response.strip()
             
             # 验证结果
             if result_clean in ["0", "1"]:
                 # 记录日志
                 db.insert_llm_log(conn, "llm_log_step9", {
-                    "regulation_id": reg["id"],
+                    "regulation_id": reg_id,
                     "rag_query": rag_query,
                     "rag_result": rag_result[:2000] if rag_result else "",
-                    "llm_prompt": llm_prompt[:2000],
+                    "llm_prompt": classification_prompt[:2000],
                     "llm_response": llm_response,
                     "category": result_clean,
                 })
