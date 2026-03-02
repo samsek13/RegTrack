@@ -35,3 +35,6 @@ env/
 # 测试覆盖率
 htmlcov/
 .coverage
+
+# Web界面日志
+web_interface/logs/

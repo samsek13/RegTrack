@@ -357,3 +357,66 @@ python clear_db.py
 - 重置操作不可逆，请确保不需要保留现有数据
 - 重置后，数据库将恢复到初始状态，包括默认的RSS源等配置
 - 数据库文件位于 `./data/regtracker.db`
+
+---
+
+### 新增 Web 图形界面（2026-03-02）
+
+为 RegTracker 新增了基于 Flask + Socket.IO 的 Web 图形操作界面，用户可以通过浏览器控制系统并实时查看运行日志。
+
+#### 功能特性
+
+1. **守护进程控制** - 启动和停止后台守护进程（定时任务）
+2. **手动回溯控制** - 执行手动回溯任务，指定日期范围
+3. **手动链接处理** - 处理单篇文章链接
+4. **实时日志查看** - 实时显示系统运行日志（WebSocket 推送）
+5. **日志下载** - 下载系统运行日志文件
+
+#### 启动方式
+
+```bash
+cd regtracker/web_interface
+python app.py
+```
+
+服务器默认运行在 http://127.0.0.1:5000
+
+#### 配置选项
+
+| 环境变量 | 说明 | 默认值 |
+|---------|------|--------|
+| WEB_HOST | Web服务器监听地址 | 127.0.0.1 |
+| WEB_PORT | Web服务器端口 | 5000 |
+| DEBUG_MODE | 调试模式开关 | False |
+
+#### 技术架构
+
+- 后端：Flask + Socket.IO
+- 前端：HTML5 + Bootstrap 5 + JavaScript
+- 实时通信：WebSocket（通过Socket.IO）
+
+> **安全提示**：此 Web 界面仅供本地访问，未实现用户认证机制，请勿将其暴露到公共网络。
+
+---
+
+### 新增模型兼容性管理模块（2026-03-02）
+
+新增 `model_config.py` 模块，用于管理不同 LLM 模型的参数兼容性。
+
+#### 核心功能
+
+- 自动检测模型是否支持特定参数（如 `enable_thinking`）
+- 过滤掉模型不支持的参数，避免 API 调用失败
+- 支持按模型名称精确配置或按关键字模糊匹配
+
+#### 支持的模型配置
+
+| 模型 | 不支持参数 |
+|------|-----------|
+| deepseek-ai/DeepSeek-V3 | enable_thinking |
+| Qwen/Qwen2.5-72B-Instruct | enable_thinking |
+| Qwen/Qwen3-VL-32B-Thinking | enable_thinking |
+
+#### 扩展方式
+
+可在 `model_config.py` 的 `model_compatibility` 字典中添加更多模型配置。

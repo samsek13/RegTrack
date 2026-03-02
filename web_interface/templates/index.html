@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RegTracker Web界面</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="mb-4">法规情报自动化采集系统 (RegTracker) - Web界面</h1>
+
+        <!-- 守护进程控制区域 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>守护进程控制</h5>
+            </div>
+            <div class="card-body">
+                <button id="start-daemon" class="btn btn-success me-2">启动守护进程</button>
+                <button id="stop-daemon" class="btn btn-warning">停止守护进程</button>
+                <span id="daemon-status" class="ms-3">状态: 停止</span>
+            </div>
+        </div>
+
+        <!-- 回溯任务控制区域 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>手动回溯任务</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <input type="date" id="backfill-date" class="form-control">
+                    </div>
+                    <div class="col-md-8">
+                        <button id="run-backfill" class="btn btn-primary">执行回溯任务</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 链接处理控制区域 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>处理单篇文章链接</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <input type="url" id="article-url" class="form-control" placeholder="请输入文章链接">
+                    </div>
+                    <div class="col-md-4">
+                        <button id="run-process" class="btn btn-info">处理链接</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 日志显示区域 -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>运行日志</h5>
+                <button id="download-logs" class="btn btn-sm btn-outline-secondary">下载日志</button>
+            </div>
+            <div class="card-body">
+                <div id="log-output" class="border p-3" style="height: 400px; overflow-y: auto; background-color: #f8f9fa;">
+                    <!-- 日志内容将在此处显示 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
