@@ -14,6 +14,7 @@ import sqlite3
 import db
 import llm
 from regulation_utils import generate_and_save_summary
+import config
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -124,7 +125,7 @@ def _compare_batch(
 
     for attempt in range(3):
         try:
-            llm_response = llm.call_llm(prompt).strip().upper()
+            llm_response = llm.call_llm(prompt, model=getattr(config, 'llm_model_step7a', None)).strip().upper()
             if llm_response in ("YES", "NO"):
                 is_dup = (llm_response == "YES")
                 break

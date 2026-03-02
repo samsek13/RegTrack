@@ -12,6 +12,7 @@ import sqlite3
 import db
 import llm
 from regulation_utils import generate_and_save_summary
+import config
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -180,24 +181,26 @@ def extract_regulations(
 def _call_llm_with_retry(prompt: str, max_retries: int = 3) -> str:
     """
     调用 LLM，获取 JSON 响应
-    
+
     Args:
         prompt: 发送给 LLM 的 prompt
         max_retries: 最大重试次数
-    
+
     Returns:
         LLM 返回的文本
     """
     for attempt in range(max_retries):
         try:
-            response = llm.call_llm(prompt)
+            # 获取配置中的模型，如果未定义则使用默认模型
+            model_name = getattr(config, 'llm_model_step6', None)
+            response = llm.call_llm(prompt, model=model_name)
             return response
         except Exception as e:
             logger.error(f"LLM 调用失败 (尝试 {attempt + 1}/{max_retries}): {e}")
             if attempt < max_retries - 1:
                 continue
             raise
-    
+
     return "[]"
 
 

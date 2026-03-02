@@ -9,6 +9,7 @@ import sqlite3
 
 import db
 import llm
+import config
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ def _call_llm_with_retry(prompt: str, max_retries: int = 3) -> str:
     """
     for attempt in range(max_retries):
         try:
-            response = llm.call_llm(prompt)
+            response = llm.call_llm(prompt, model=getattr(config, 'llm_model_step2', None))
             result_clean = response.strip().upper()
             
             # 检查是否为有效响应

@@ -19,7 +19,7 @@ class Config:
     # SiliconFlow API 配置
     siliconflow_api_key: str
     siliconflow_api_base: str
-    siliconflow_model: str
+    siliconflow_model: str  # 保留此字段作为默认模型，与 rag.py 兼容
     
     # Tavily API 配置
     tavily_api_key: str
@@ -34,6 +34,16 @@ class Config:
     
     # RSS 配置
     rss_feed_url: str
+    
+    # Per-step LLM 模型配置
+    llm_model_step2:   str = ""
+    llm_model_step4:   str = ""
+    llm_model_step5:   str = ""
+    llm_model_step6:   str = ""
+    llm_model_step7a:  str = ""
+    llm_model_step8:   str = ""  # 补充遗漏的 step8
+    llm_model_step9:   str = ""
+    llm_model_summary: str = ""
 
 
 def _get_required_env(key: str) -> str:
@@ -73,4 +83,14 @@ config = Config(
     
     # RSS 配置
     rss_feed_url=_get_optional_env("RSS_FEED_URL", "http://localhost:8001/feed/all.rss"),
+    
+    # Per-step LLM 模型配置
+    llm_model_step2   = os.environ.get("LLM_MODEL_STEP2", ""),
+    llm_model_step4   = os.environ.get("LLM_MODEL_STEP4", ""),
+    llm_model_step5   = os.environ.get("LLM_MODEL_STEP5", ""),
+    llm_model_step6   = os.environ.get("LLM_MODEL_STEP6", ""),
+    llm_model_step7a  = os.environ.get("LLM_MODEL_STEP7A", ""),
+    llm_model_step8   = os.environ.get("LLM_MODEL_STEP8", ""),  # 补充遗漏的 step8
+    llm_model_step9   = os.environ.get("LLM_MODEL_STEP9", ""),
+    llm_model_summary = os.environ.get("LLM_MODEL_SUMMARY", ""),
 )

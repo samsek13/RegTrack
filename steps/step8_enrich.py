@@ -11,6 +11,7 @@ import sqlite3
 import db
 import llm
 import rag
+import config
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -130,12 +131,11 @@ def _enrich_name_en(conn: sqlite3.Connection, reg: Dict[str, Any]) -> Optional[s
 2. 如果无法确定，输出 [TBC]
 3. 不要输出解释、引号或其他多余内容"""
 
-        llm_response = llm.call_llm(llm_prompt)
+        llm_response = llm.call_llm(llm_prompt, model=getattr(config, 'llm_model_step8', None))
         name_en = llm_response.strip()
         
         # 清理可能的引号
         name_en = name_en.strip('"\'').strip()
-        
         # 记录日志
         db.insert_llm_log(conn, "llm_log_step8", {
             "regulation_id": reg["id"],
@@ -233,7 +233,7 @@ def _enrich_field(conn: sqlite3.Connection, reg: Dict[str, Any], field: str) -> 
 2. 如果无法确定，输出 [TBC]
 3. 不要输出解释或其他多余内容"""
 
-        llm_response = llm.call_llm(llm_prompt)
+        llm_response = llm.call_llm(llm_prompt, model=getattr(config, 'llm_model_step8', None))
         value = llm_response.strip()
         
         # 验证日期格式

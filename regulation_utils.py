@@ -12,6 +12,7 @@ from typing import Callable, Optional
 from rag import search_and_answer
 from llm import call_llm
 from db import update_regulation_summary
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ def generate_and_save_summary(
     final_response = ""
     for attempt in range(3):
         try:
-            result = call_llm(prompt).strip()
+            result = call_llm(prompt, model=getattr(config, 'llm_model_summary', None)).strip()
             final_response = result
             if result:
                 summary = result

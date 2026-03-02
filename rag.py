@@ -15,6 +15,7 @@ from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from config import config
+from model_config import get_model_extra_body_for_thinking
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -31,13 +32,22 @@ def _get_llm() -> ChatOpenAI:
     """获取或创建 LLM 实例（单例模式）"""
     global _llm
     if _llm is None:
-        _llm = ChatOpenAI(
-            model=config.siliconflow_model,
-            base_url=config.siliconflow_api_base,
-            api_key=config.siliconflow_api_key,
-            temperature=0,
-            max_tokens=4096,
-        )
+        # 获取适合该模型的 extra_body 参数（考虑兼容性）
+        extra_body = get_model_extra_body_for_thinking(config.siliconflow_model, False)
+
+        llm_kwargs = {
+            "model": config.siliconflow_model,
+            "base_url": config.siliconflow_api_base,
+            "api_key": config.siliconflow_api_key,
+            "temperature": 0,
+            "max_tokens": 4096,
+        }
+
+        # 只有在参数存在且有效的情况下才添加 extra_body
+        if extra_body:
+            llm_kwargs["extra_body"] = extra_body
+
+        _llm = ChatOpenAI(**llm_kwargs)
     return _llm
 
 

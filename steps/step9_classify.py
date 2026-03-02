@@ -11,6 +11,7 @@ import sqlite3
 import db
 import llm
 from regulation_utils import generate_and_save_summary
+import config
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -146,7 +147,7 @@ def _classify_regulation(conn: sqlite3.Connection, reg: Dict[str, Any]) -> str:
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            llm_response = llm.call_llm(classification_prompt)
+            llm_response = llm.call_llm(classification_prompt, model=getattr(config, 'llm_model_step9', None))
             result_clean = llm_response.strip()
             
             # 验证结果
