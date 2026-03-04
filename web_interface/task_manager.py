@@ -16,8 +16,22 @@ class TaskManager:
         sys.path.insert(0, regtracker_path)
 
         self.daemon_process = None
+        self.daemon_log_thread = None  # 守护进程日志读取线程
         self.current_task = None
         self.task_lock = threading.Lock()
+
+    def _read_daemon_output(self):
+        """读取守护进程的输出并转发到日志系统"""
+        logger = logging.getLogger(__name__)
+        while self.daemon_process and self.daemon_process.poll() is None:
+            try:
+                line = self.daemon_process.stdout.readline()
+                if line:
+                    logger.info(f"[Daemon] {line.rstrip()}")
+                else:
+                    break
+            except Exception:
+                break
 
     def start_daemon(self):
         """启动守护进程"""
@@ -38,6 +52,9 @@ class TaskManager:
                     bufsize=1,
                     universal_newlines=True
                 )
+                # 启动日志读取线程
+                self.daemon_log_thread = threading.Thread(target=self._read_daemon_output, daemon=True)
+                self.daemon_log_thread.start()
                 return {"success": True, "message": "守护进程已启动"}
             except Exception as e:
                 return {"success": False, "message": f"启动守护进程失败: {str(e)}"}

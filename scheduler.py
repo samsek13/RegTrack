@@ -76,6 +76,7 @@ def run_scheduler():
         CronTrigger(hour="0,12", minute=15),
         id="regtracker_scheduled_job",
         name="RegTracker 定时任务",
+        misfire_grace_time=60,  # 允许任务迟到60秒内仍执行
     )
     
     logger.info("调度器启动，定时任务运行时间：每日 00:15 和 12:15")
