@@ -8,6 +8,7 @@ import json
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
+from pathlib import Path
 
 from config import config
 
@@ -165,6 +166,10 @@ def get_connection() -> sqlite3.Connection:
     获取数据库连接（上下文管理器）
     启用 WAL 模式和外键约束，自动提交/回滚
     """
+    # 确保数据库目录存在
+    db_dir = Path(config.db_path).parent
+    db_dir.mkdir(parents=True, exist_ok=True)
+
     conn = sqlite3.connect(config.db_path)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
