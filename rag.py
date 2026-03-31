@@ -88,8 +88,11 @@ def _chatbot_node(state: MessagesState):
         "你是一个有帮助的 AI 助手。"
         "当用户的问题需要最新信息、实时数据或你不确定的事实时，"
         "请使用 tavily_search 工具搜索网络获取信息。"
+        "重要限制：你最多只搜索 2 次。获得搜索结果后，"
+        "无论结果是否完整，都必须立即基于已有信息回答。"
         "当你使用搜索结果回答时，请标注信息来源。"
         "如果搜索结果中没有找到相关信息，请诚实告知用户。"
+        "禁止超出 2 次的连续多次搜索，在超出 2 次搜索的情况下不要尝试优化搜索结果。"
     ))
     
     llm_with_tools, _ = _get_llm_with_tools()
@@ -153,28 +156,31 @@ def _get_graph():
 def search_and_answer(question: str) -> str:
     """
     输入用户问题，返回基于网络搜索的回答。
-    
+
     这是模块对外暴露的唯一接口。
     LLM 会自动决定是否需要搜索网络获取信息。
-    
+
     Args:
         question: 用户的问题
-    
+
     Returns:
         基于网络搜索的回答文本
     """
     logger.info(f"RAG 模块收到问题: {question[:100]}...")
-    
+
     graph = _get_graph()
-    
-    # 调用图
-    result = graph.invoke({
-        "messages": [HumanMessage(content=question)]
-    })
-    
+
+    # 添加递归限制，默认 15（可通过环境变量 RAG_RECURSION_LIMIT 覆盖）
+    recursion_limit = int(getattr(config, 'rag_recursion_limit', 15))
+
+    result = graph.invoke(
+        {"messages": [HumanMessage(content=question)]},
+        config={"recursion_limit": recursion_limit}
+    )
+
     # 获取最后一条消息（即最终回答）
     final_message = result["messages"][-1]
-    
+
     logger.info(f"RAG 模块返回回答，长度: {len(final_message.content)} 字符")
     return final_message.content
 

@@ -92,4 +92,4 @@ if __name__ == '__main__':
     port = int(os.getenv('WEB_PORT', 5000))
     debug = os.getenv('DEBUG_MODE', 'False').lower() == 'true'
 
-    socketio.run(app, host=host, port=port, debug=debug)
+    socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)

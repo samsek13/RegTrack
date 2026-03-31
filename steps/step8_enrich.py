@@ -136,6 +136,11 @@ def _enrich_name_en(conn: sqlite3.Connection, reg: Dict[str, Any]) -> Optional[s
         
         # 清理可能的引号
         name_en = name_en.strip('"\'').strip()
+
+        # 将 [TBC] 视为未确定，返回 None
+        if name_en == "[TBC]":
+            return None
+
         # 记录日志
         db.insert_llm_log(conn, "llm_log_step8", {
             "regulation_id": reg["id"],
@@ -147,11 +152,11 @@ def _enrich_name_en(conn: sqlite3.Connection, reg: Dict[str, Any]) -> Optional[s
             "filled_value": name_en,
         })
         
-        return name_en if name_en else "[TBC]"
-        
+        return name_en if name_en else None
+
     except Exception as e:
         logger.error(f"  - name_en 补全失败: {e}")
-        return "[TBC]"
+        return None
 
 
 def _enrich_field(conn: sqlite3.Connection, reg: Dict[str, Any], field: str) -> Optional[str]:
