@@ -8,7 +8,13 @@
 </head>
 <body>
     <div class="container mt-4">
-        <h1 class="mb-4">法规情报自动化采集系统 (RegTracker) - Web界面</h1>
+        <!-- 导航栏（新增：包含退出登录按钮） -->
+        <nav class="navbar navbar-light bg-light mb-4 rounded">
+            <div class="container-fluid">
+                <span class="navbar-brand mb-0 h1">法规情报自动化采集系统 (RegTracker)</span>
+                <a href="/logout" class="btn btn-outline-danger btn-sm" id="logout-btn">退出登录</a>
+            </div>
+        </nav>
 
         <!-- 守护进程控制区域 -->
         <div class="card mb-4">

@@ -200,3 +200,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // 页面加载后更新一次状态
     updateStatus();
 });
+
+// 401 响应拦截：session 过期时自动跳转登录页
+const originalFetch = window.fetch;
+window.fetch = function(...args) {
+    return originalFetch.apply(this, args).then(response => {
+        if (response.status === 401) {
+            window.location.href = '/login';
+            return Promise.reject(new Error('未登录'));
+        }
+        return response;
+    });
+};

@@ -7,3 +7,4 @@ itsdangerous==2.2.0
 click==8.1.7
 APScheduler==3.10.4
 requests==2.32.3
+bcrypt==4.2.1
