@@ -229,9 +229,10 @@ def sync_to_db(records: List[Dict[str, Any]]) -> Dict[str, int]:
     try:
         cursor = conn.cursor()
 
-        # 清空表
+        # 清空表并重置自增计数器
         cursor.execute("DELETE FROM regulations")
-        logger.info("已清空 regulations 表")
+        cursor.execute("DELETE FROM sqlite_sequence WHERE name='regulations'")
+        logger.info("已清空 regulations 表并重置 id 计数器")
 
         # 插入所有数据
         for record in records:
