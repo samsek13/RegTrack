@@ -1,0 +1,22 @@
+services:
+  regtracker:
+    build: .
+    container_name: regtracker
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./backups:/app/backups
+      - ./.env:/app/.env:ro
+      - ./service_account.json:/app/service_account.json:ro
+    environment:
+      - TZ=Asia/Shanghai
+      - WEB_HOST=0.0.0.0
+      - RSS_FEED_URL=http://werss:8001/feed/all.rss
+    networks:
+      - werss-net
+
+networks:
+  werss-net:
+    external: true
